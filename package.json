@@ -1,7 +1,7 @@
 {
   "name": "presentation",
   "version": "1.0.0",
-  "description": "Presentation template",
+  "description": " few tips on modelling things in Scala",
   "homepage": "https://kubuszok.com",
   "scripts": {
     "start": "grunt serve",
@@ -15,7 +15,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/MateuszKubuszok/presentation-template.git"
+    "url": "git://github.com/MateuszKubuszok/AFewTipsOnModellingThingsInScala.git"
   },
   "devDependencies": {
     "@asciidoctor/core": "2.2.0",

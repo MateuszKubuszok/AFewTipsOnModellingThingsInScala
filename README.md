@@ -1,4 +1,4 @@
-# Presentation title
+# A few tips on modelling things in Scala
 
 ## Running
 

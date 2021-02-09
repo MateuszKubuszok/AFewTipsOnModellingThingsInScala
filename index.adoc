@@ -1,4 +1,4 @@
-= Title Slide
+= A few tips on modelling things in Scala
 
 == Slide One
 
