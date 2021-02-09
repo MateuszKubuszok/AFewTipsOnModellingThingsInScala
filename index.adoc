@@ -1,0 +1,28 @@
+= Title Slide
+
+== Slide One
+
+[%step]
+* Foo
+* Bar
+* World
+
+== Slide Two
+
+Hello World - Good Bye Cruel World
+
+[NOTE.speaker]
+--
+Actually things aren't that bad
+--
+
+== Source code
+
+[source, scala]
+--
+val test = task
+  .map(identity)
+  .flatMap(a => Something(b))
+  .runSyncUnsafe
+  // result
+--

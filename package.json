@@ -1,0 +1,38 @@
+{
+  "name": "presentation",
+  "version": "1.0.0",
+  "description": "Presentation template",
+  "homepage": "https://kubuszok.com",
+  "scripts": {
+    "start": "grunt serve",
+    "build": "grunt",
+    "prebuild": "./asciidoctor-revealjs.js"
+  },
+  "author": {
+    "name": "Mateusz Kubuszok",
+    "email": "mateusz.kubuszok@gmail.com",
+    "web": "https://kubuszok.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/MateuszKubuszok/presentation-template.git"
+  },
+  "devDependencies": {
+    "@asciidoctor/core": "2.2.0",
+    "@asciidoctor/reveal.js": "4.0.1",
+    "express": "^4.17.1",
+    "grunt": "^1.0.4",
+    "grunt-autoprefixer": "^3.0.4",
+    "grunt-cli": "^1.2.0",
+    "grunt-contrib-connect": "^3.0.0",
+    "grunt-contrib-cssmin": "^3.0.0",
+    "grunt-contrib-watch": "^1.0.0",
+    "grunt-retire": "^1.0.7",
+    "grunt-run": "0.8.1",
+    "grunt-sass": "^2.0.0",
+    "grunt-zip": "~0.17.1",
+    "mustache": "^2.3.0",
+    "socket.io": "^2.1.1"
+  },
+  "license": "MIT"
+}
