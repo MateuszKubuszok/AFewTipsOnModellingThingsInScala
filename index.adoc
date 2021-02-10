@@ -1,28 +1,190 @@
 = A few tips on modelling things in Scala
 
-== Slide One
+
+== About me
 
 [%step]
-* Foo
-* Bar
-* World
+* breaking things in Scala for 5+ years
+* breaking things for money for 8 years
+* breaking things for fun for 16(?) years
+* blog at https://kubuszok.com[kubuszok.com]
+* niche https://leanpub.com/jvm-scala-book[Things you need to know about JVM (that matter in Scala)] ebook 
 
-== Slide Two
 
-Hello World - Good Bye Cruel World
+== The plan
 
-[NOTE.speaker]
---
-Actually things aren't that bad
---
+[%step]
+* `case class` es - when, when not
+* flat is (often) bad
+* `sealed trait` s - not only enums
+* one size suit all - doesn't work
+* integrations and derivation
 
-== Source code
+
+
+== `case class` es
+
+=== Warm up
+
+=== When
+
+Conditions for using case class
+
+TODO
+
+=== When not
+
+Examples when case class is bad or confusing
+
+TODO
+
+=== Cats Typeclasses
+
+TODO cats eq, hashcode, show - conditions, usage (debugging for show)
+
+
+== Flat is (often) bad
+
+=== Flat entity
 
 [source, scala]
 --
-val test = task
-  .map(identity)
-  .flatMap(a => Something(b))
-  .runSyncUnsafe
-  // result
+case class UserAddress(
+  id:           UUID,
+  userID:       UUID,
+  addressLine1: String,
+  addressLine2: Option[String],
+  city:         String,
+  zipCode:      String
+)
 --
+
+=== Comparison
+
+[source, scala]
+--
+// check for the same entity and version
+address1 == address2
+
+// check for the same entity, maybe different version
+address1.id == address2.id
+
+// check for the same address value, maybe different entity
+(address1.addressLine1 == address2.addressLine1) &&
+  (address1.addressLine2 == address2.addressLine2) &&
+  (address1.city == address2.city) &&
+  (address1.zipCode == address2.zipCode)
+--
+
+[NOTE.speaker]
+--
+What if you add a new field? Do we remember to update all places? Does the code tells us what we do business-wise?
+--
+
+=== Just data things
+
+[source, scala]
+--
+case class DataRecord(
+  name1: String,
+  name2: String,
+  yetAnotherName: String,
+  // ... 20-30 fields more
+  metricX: Int,
+  metricY: Int
+)
+--
+
+[NOTE.speaker]
+--
+Grouping these values into smaller values would help structural sharing on update, passing on only the part that is needed but more importantly 
+--
+
+=== Nested entity
+
+[source, scala]
+--
+final case class UserAddress(
+  id:   UserAddress.ID,
+  data: UserAddress.Data)
+object UserAddress {
+  type ID = UUID // or AnyVal or tagged or @newtype
+  final case class Data(
+    userID:  User.ID,
+    address: Address)
+}
+final case class Address(
+  addressLine1: String, // other candidates for:
+  addressLine2: Option[String], // * type aliases
+  city:         String,         // * AnyVals or
+  zipCode:      String)         // * @newtypes
+--
+
+=== Comparison again
+
+[source, scala]
+--
+userAddress1 == userAddress2
+
+userAddress1.id == userAddress2.id
+
+userAddress1.data.userID == userAddress2.data.userID
+
+userAddress1.data.address == userAddress2.data.address
+--
+
+[NOTE.speaker]
+--
+Intent is self-evident. `===` and `Eq` can work even better.
+--
+
+=== Why people avoid nested case classes
+
+Because `.copy`
+
+[source, scala]
+--
+userAddress.copy(
+  data = userAddress.data.copy(
+    address = userAddress.data.address.copy(city = "Yolo")
+  )
+)
+--
+
+Unnecessarily
+
+[source, scala]
+--
+import com.softwaremill.quicklens._ // \o/ \o/ \o/
+
+userAddress.modify(_.data.address).setTo("Yolo")
+userAddress.modify(_.data.address).using(_.toUppercase)
+--
+
+
+== `sealed trait` s
+
+TODO
+
+=== If anything else fails - smart constructors
+
+TODO
+
+
+== A case against uniform modelling
+
+TODO
+
+[NOTE.speaker]
+--
+Taking a moment to design a model that is simple to understand and hard to use wrong.
+--
+
+
+== Integrations
+
+
+== Questons?
+
+
+== Thank you!

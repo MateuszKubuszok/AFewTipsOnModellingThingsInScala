@@ -154,14 +154,74 @@ TeX: { equationNumbers: { autoNumber: "none" } }
 link.rel = 'stylesheet';
 link.type = 'text/css';
 link.href = window.location.search.match( /print-pdf/gi ) ? "./css/print/pdf.css" : "./css/print/paper.css";
-document.getElementsByTagName( 'head' )[0].appendChild( link );</script></head><body><div class="reveal"><div class="slides"><section class="title" data-state="title"><h1>A few tips on modelling things in Scala</h1></section><section id="_slide_one"><h2>Slide One</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>Foo</p></li><li class="fragment"><p>Bar</p></li><li class="fragment"><p>World</p></li></ul></div></div></section>
-<section id="_slide_two"><h2>Slide Two</h2><div class="slide-content"><div class="paragraph"><p>Hello World - Good Bye Cruel World</p></div>
-<aside class="notes"><div class="paragraph"><p>Actually things aren&#8217;t that bad</p></div></aside></div></section>
-<section id="_source_code"><h2>Source code</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">val test = task
-  .map(identity)
-  .flatMap(a =&gt; Something(b))
-  .runSyncUnsafe
-  // result</code></pre></div></div></div></section></div></div><script src="./js/reveal.js"></script><script>Array.prototype.slice.call(document.querySelectorAll('.slides section')).forEach(function(slide) {
+document.getElementsByTagName( 'head' )[0].appendChild( link );</script></head><body><div class="reveal"><div class="slides"><section class="title" data-state="title"><h1>A few tips on modelling things in Scala</h1></section><section id="_about_me"><h2>About me</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>breaking things in Scala for 5+ years</p></li><li class="fragment"><p>breaking things for money for 8 years</p></li><li class="fragment"><p>breaking things for fun for 16(?) years</p></li><li class="fragment"><p>blog at <a href="https://kubuszok.com">kubuszok.com</a></p></li><li class="fragment"><p>niche <a href="https://leanpub.com/jvm-scala-book">Things you need to know about JVM (that matter in Scala)</a> ebook</p></li></ul></div></div></section>
+<section id="_the_plan"><h2>The plan</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p><code>case class</code> es - when, when not</p></li><li class="fragment"><p>flat is (often) bad</p></li><li class="fragment"><p><code>sealed trait</code> s - not only enums</p></li><li class="fragment"><p>one size suit all - doesn&#8217;t work</p></li><li class="fragment"><p>integrations and derivation</p></li></ul></div></div></section>
+<section><section id="_case_class_es"><h2><code>case class</code> es</h2></section><section id="_warm_up"><h2>Warm up</h2></section><section id="_when"><h2>When</h2><div class="slide-content"><div class="paragraph"><p>Conditions for using case class</p></div>
+<div class="paragraph"><p>TODO</p></div></div></section><section id="_when_not"><h2>When not</h2><div class="slide-content"><div class="paragraph"><p>Examples when case class is bad or confusing</p></div>
+<div class="paragraph"><p>TODO</p></div></div></section><section id="_cats_typeclasses"><h2>Cats Typeclasses</h2><div class="slide-content"><div class="paragraph"><p>TODO cats eq, hashcode, show - conditions, usage (debugging for show)</p></div></div></section></section>
+<section><section id="_flat_is_often_bad"><h2>Flat is (often) bad</h2></section><section id="_flat_entity"><h2>Flat entity</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">case class UserAddress(
+  id:           UUID,
+  userID:       UUID,
+  addressLine1: String,
+  addressLine2: Option[String],
+  city:         String,
+  zipCode:      String
+)</code></pre></div></div></div></section><section id="_comparison"><h2>Comparison</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">// check for the same entity and version
+address1 == address2
+
+// check for the same entity, maybe different version
+address1.id == address2.id
+
+// check for the same address value, maybe different entity
+(address1.addressLine1 == address2.addressLine1) &amp;&amp;
+  (address1.addressLine2 == address2.addressLine2) &amp;&amp;
+  (address1.city == address2.city) &amp;&amp;
+  (address1.zipCode == address2.zipCode)</code></pre></div></div>
+<aside class="notes"><div class="paragraph"><p>What if you add a new field? Do we remember to update all places? Does the code tells us what we do business-wise?</p></div></aside></div></section><section id="_just_data_things"><h2>Just data things</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">case class DataRecord(
+  name1: String,
+  name2: String,
+  yetAnotherName: String,
+  // ... 20-30 fields more
+  metricX: Int,
+  metricY: Int
+)</code></pre></div></div>
+<aside class="notes"><div class="paragraph"><p>Grouping these values into smaller values would help structural sharing on update, passing on only the part that is needed but more importantly</p></div></aside></div></section><section id="_nested_entity"><h2>Nested entity</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">final case class UserAddress(
+  id:   UserAddress.ID,
+  data: UserAddress.Data)
+object UserAddress {
+  type ID = UUID // or AnyVal or tagged or @newtype
+  final case class Data(
+    userID:  User.ID,
+    address: Address)
+}
+final case class Address(
+  addressLine1: String, // other candidates for:
+  addressLine2: Option[String], // * type aliases
+  city:         String,         // * AnyVals or
+  zipCode:      String)         // * @newtypes</code></pre></div></div></div></section><section id="_comparison_again"><h2>Comparison again</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">userAddress1 == userAddress2
+
+userAddress1.id == userAddress2.id
+
+userAddress1.data.userID == userAddress2.data.userID
+
+userAddress1.data.address == userAddress2.data.address</code></pre></div></div>
+<aside class="notes"><div class="paragraph"><p>Intent is self-evident. <code>===</code> and <code>Eq</code> can work even better.</p></div></aside></div></section><section id="_why_people_avoid_nested_case_classes"><h2>Why people avoid nested case classes</h2><div class="slide-content"><div class="paragraph"><p>Because <code>.copy</code></p></div>
+<div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">userAddress.copy(
+  data = userAddress.data.copy(
+    address = userAddress.data.address.copy(city = "Yolo")
+  )
+)</code></pre></div></div>
+<div class="paragraph"><p>Unnecessarily</p></div>
+<div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">import com.softwaremill.quicklens._ // \o/ \o/ \o/
+
+userAddress.modify(_.data.address).setTo("Yolo")
+userAddress.modify(_.data.address).using(_.toUppercase)</code></pre></div></div></div></section></section>
+<section><section id="_sealed_trait_s"><h2><code>sealed trait</code> s</h2><div class="slide-content"><div class="paragraph"><p>TODO</p></div></div></section><section id="_if_anything_else_fails_smart_constructors"><h2>If anything else fails - smart constructors</h2><div class="slide-content"><div class="paragraph"><p>TODO</p></div></div></section></section>
+<section id="_a_case_against_uniform_modelling"><h2>A case against uniform modelling</h2><div class="slide-content"><div class="paragraph"><p>TODO</p></div>
+<aside class="notes"><div class="paragraph"><p>Taking a moment to design a model that is simple to understand and hard to use wrong.</p></div></aside></div></section>
+<section id="_integrations"><h2>Integrations</h2></section>
+<section id="_questons"><h2>Questons?</h2></section>
+<section id="_thank_you"><h2>Thank you!</h2></section></div></div><script src="./js/reveal.js"></script><script>Array.prototype.slice.call(document.querySelectorAll('.slides section')).forEach(function(slide) {
   if (slide.getAttribute('data-background-color')) return;
   // user needs to explicitly say he wants CSS color to override otherwise we might break custom css or theme (#226)
   if (!(slide.classList.contains('canvas') || slide.classList.contains('background'))) return;
