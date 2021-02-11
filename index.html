@@ -156,9 +156,59 @@ link.type = 'text/css';
 link.href = window.location.search.match( /print-pdf/gi ) ? "./css/print/pdf.css" : "./css/print/paper.css";
 document.getElementsByTagName( 'head' )[0].appendChild( link );</script></head><body><div class="reveal"><div class="slides"><section class="title" data-state="title"><h1>A few tips on modelling things in Scala</h1></section><section id="_about_me"><h2>About me</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>breaking things in Scala for 5+ years</p></li><li class="fragment"><p>breaking things for money for 8 years</p></li><li class="fragment"><p>breaking things for fun for 16(?) years</p></li><li class="fragment"><p>blog at <a href="https://kubuszok.com">kubuszok.com</a></p></li><li class="fragment"><p>niche <a href="https://leanpub.com/jvm-scala-book">Things you need to know about JVM (that matter in Scala)</a> ebook</p></li></ul></div></div></section>
 <section id="_the_plan"><h2>The plan</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p><code>case class</code> es - when, when not</p></li><li class="fragment"><p>flat is (often) bad</p></li><li class="fragment"><p><code>sealed trait</code> s - not only enums</p></li><li class="fragment"><p>one size suit all - doesn&#8217;t work</p></li><li class="fragment"><p>integrations and derivation</p></li></ul></div></div></section>
-<section><section id="_case_class_es"><h2><code>case class</code> es</h2></section><section id="_warm_up"><h2>Warm up</h2></section><section id="_when"><h2>When</h2><div class="slide-content"><div class="paragraph"><p>Conditions for using case class</p></div>
-<div class="paragraph"><p>TODO</p></div></div></section><section id="_when_not"><h2>When not</h2><div class="slide-content"><div class="paragraph"><p>Examples when case class is bad or confusing</p></div>
-<div class="paragraph"><p>TODO</p></div></div></section><section id="_cats_typeclasses"><h2>Cats Typeclasses</h2><div class="slide-content"><div class="paragraph"><p>TODO cats eq, hashcode, show - conditions, usage (debugging for show)</p></div></div></section></section>
+<section><section id="_case_class_es"><h2><code>case class</code> es</h2></section><section id="_warm_up"><h2>Warm up</h2><div class="slide-content"><div class="paragraph"><p>What we get when we do?</p></div>
+<div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">case class Value(a: Int, b: String)</code></pre></div></div></div></section><section><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">class Value(a: Int, b: String)
+    extends Product with Serializable {
+  def copy(a: Int = a, b: String = b): Value = ...
+  override def equals(obj: AnyRef): Boolean = ...
+  override def hashCode(): Int = ...
+  override def toString(): String = s"Value($a, $b)"
+  // ... a lot of methods from Product
+}
+object Value extends ((Int, String) =&gt; Value) {
+  def apply(a: Int, b: String): Value = new Value(a, b)
+  def unapply(value: Value): Option[(Int, String)] = ...
+}</code></pre></div></div></div></section><section><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">Value(1, "1") == new Value(1, "1") // true
+Value(1, "1") == Value(2, "2") // false
+Value(1, "1") == Value(1, "2").copy(b = "1") // true
+
+Value(1, "1") match {
+  case Value(a, b) =&gt; println(s"a: $a, b: $b")
+}</code></pre></div></div></div></section><section id="_when"><h2>When</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>we want to represent a value/record</p></li><li class="fragment"><p><strong>all</strong> properties are value types</p></li></ul></div></div></section><section id="_when_not"><h2>When not</h2></section><section><div class="slide-content"><div class="paragraph"><p>When there is state</p></div>
+<div class="listingblock fragment"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">case class NamedCounter(name: String,
+                        var counter: Int = 0) {
+  def action(): Unit = counter += 1
+}</code></pre></div></div>
+<div class="listingblock fragment"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">val counter  = NamedCounter("test")
+val counters = scala.collection.immutable.HashSet(counter)
+counters(counter) // true
+counter.action()
+counters(counter) // false</code></pre></div></div>
+<div class="listingblock fragment"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">class NamedCounter(val name: String) {
+  var counter: Int = 0
+  def action(): Unit = counter += 1
+}</code></pre></div></div>
+<aside class="notes"><div class="paragraph"><p>Value types shouldn&#8217;t be stateful.</p></div></aside></div></section><section><div class="slide-content"><div class="paragraph"><p>When class describes behavior - especially side effects</p></div>
+<div class="listingblock fragment"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">case class DbConnection(user: String,
+                        pass: String,
+                        url: String) {
+  // perhaps initialize connection?
+  def runSql(query: String): Int = ...
+}</code></pre></div></div>
+<div class="listingblock fragment"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">case class DbConfig(user: String,
+                    pass: String,
+                    url: String)
+
+class DbConnection(dbCfg: DbConfig) {
+  // behavior
+}</code></pre></div></div>
+<aside class="notes"><div class="paragraph"><p>Value types aren&#8217;t behavior. Generating apply doesn&#8217;t justify using <code>case class</code>.</p></div></aside></div></section><section><div class="slide-content"><div class="paragraph"><p>When not all properties are values</p></div>
+<div class="listingblock fragment"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">case class KeyPair(publicKey: Array[Byte],
+                   privateKey: Array[Byte])</code></pre></div></div>
+<div class="listingblock fragment"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">case class KeyPair(publicKey: ArraySeq[Byte],
+                   privateKey: ArraySeq[Byte])</code></pre></div></div>
+<aside class="notes"><div class="paragraph"><p>Don&#8217;t put into <code>case class</code> values which doesn&#8217;t implement safe <code>equals</code> and <code>hashCode</code>. If you imagine nested <code>case class</code> es as a tree, all leafs have to have sane implementations.</p></div></aside></div></section><section id="_cats_typeclasses"><h2>Cats Typeclasses</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p><strong>default</strong> <code>Eq</code> should match <code>.equals</code></p></li><li class="fragment"><p>do not use <code>Show</code> for any business logic, only debugging (same for <code>.toString</code>)</p></li></ul></div>
+<aside class="notes"><div class="paragraph"><p>These are my own recommendations.</p></div></aside></div></section></section>
 <section><section id="_flat_is_often_bad"><h2>Flat is (often) bad</h2></section><section id="_flat_entity"><h2>Flat entity</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">case class UserAddress(
   id:           UUID,
   userID:       UUID,
@@ -205,19 +255,61 @@ userAddress1.id == userAddress2.id
 userAddress1.data.userID == userAddress2.data.userID
 
 userAddress1.data.address == userAddress2.data.address</code></pre></div></div>
-<aside class="notes"><div class="paragraph"><p>Intent is self-evident. <code>===</code> and <code>Eq</code> can work even better.</p></div></aside></div></section><section id="_why_people_avoid_nested_case_classes"><h2>Why people avoid nested case classes</h2><div class="slide-content"><div class="paragraph"><p>Because <code>.copy</code></p></div>
-<div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">userAddress.copy(
+<aside class="notes"><div class="paragraph"><p>Intent is self-evident. <code>===</code> and <code>Eq</code> can work even better.</p></div></aside></div></section><section id="_why_people_avoid_nesting"><h2>Why people avoid nesting</h2><div class="slide-content"><div class="paragraph fragment"><p>Because <code>.copy</code></p></div>
+<div class="listingblock fragment"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">userAddress.copy(
   data = userAddress.data.copy(
     address = userAddress.data.address.copy(city = "Yolo")
   )
 )</code></pre></div></div>
-<div class="paragraph"><p>Unnecessarily</p></div>
-<div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">import com.softwaremill.quicklens._ // \o/ \o/ \o/
+<div class="paragraph fragment"><p>Unnecessarily</p></div>
+<div class="listingblock fragment"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">import com.softwaremill.quicklens._ // \o/ \o/ \o/
 
 userAddress.modify(_.data.address).setTo("Yolo")
 userAddress.modify(_.data.address).using(_.toUppercase)</code></pre></div></div></div></section></section>
-<section><section id="_sealed_trait_s"><h2><code>sealed trait</code> s</h2><div class="slide-content"><div class="paragraph"><p>TODO</p></div></div></section><section id="_if_anything_else_fails_smart_constructors"><h2>If anything else fails - smart constructors</h2><div class="slide-content"><div class="paragraph"><p>TODO</p></div></div></section></section>
-<section id="_a_case_against_uniform_modelling"><h2>A case against uniform modelling</h2><div class="slide-content"><div class="paragraph"><p>TODO</p></div>
+<section><section id="_sealed_trait_s"><h2><code>sealed trait</code> s</h2></section><section id="_enums"><h2>Enums</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">sealed trait Color
+object Color {
+  case object Red extends Color
+  case object Blue extends Color
+  case object Green extends Color
+}</code></pre></div></div>
+<div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">(color: Color) match {
+  case Color.Red   =&gt;
+  case Color.Blue  =&gt;
+  case Color.Green =&gt;
+}</code></pre></div></div>
+<aside class="notes"><div class="paragraph"><p>Exhaustivity check. Enums like that can be improved with Enumeratum. Avoid Enumerations!</p></div></aside></div></section><section id="_enumerating_valid_combinations"><h2>Enumerating valid combinations</h2><div class="slide-content"><div class="listingblock fragment"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">case class UserEmail(currentEmail: String,
+                     newEmail:     Option[String] = None,
+                     confirmed:    Boolean        = false)</code></pre></div></div>
+<div class="listingblock fragment"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">sealed trait UserEmail
+object UserEmail {
+  case class New(email: String) extends UserEmail
+  case class Confirmed(email: String) extends UserEmail
+  case class Changing(currentEmail: String,
+                      newEmail: String) extends UserEmail
+}</code></pre></div></div>
+<aside class="notes"><div class="paragraph"><p>Eliminate options and explosion of combinations.</p></div></aside></div></section><section><div class="slide-content"><div class="paragraph"><p>If <code>sealed trait</code> doesn&#8217;t work for some reason</p></div>
+<div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">sealed abstract case class UserEmail private (
+  currentEmail: String,
+  newEmail:     Option[String],
+  confirmed:    Boolean
+)
+object UserEmail {
+  def parse(
+    currentEmail: String,
+    newEmail:     Option[String] = None,
+    confirmed:    Boolean        = false
+  ): Either[String, UserEmail] =
+    if (/* validation */) Right(new UserEmail(...) {})
+    else Left("Illegal combination of parameters")
+}</code></pre></div></div>
+<aside class="notes"><div class="paragraph"><p>Smart constructor.
+<code>abstract</code> prevents <code>.copy</code> and <code>.apply</code>.
+<code>private</code> prevent <code>new</code> outside of this object.
+<code>sealed</code> prevents <code>extends</code>.
+<code>.equals</code>, <code>.hashCode</code>, <code>.toString</code> and <code>unapply</code> still works.
+A lot of cases that used to be handled by smart constructor are handled by Refine Types.</p></div></aside></div></section></section>
+<section id="_a_case_against_uniform_modelling"><h2>A case against uniform modelling</h2><div class="slide-content"><div class="paragraph fragment"><p>Uniform modelling:</p></div>
+<div class="ulist"><ul><li class="fragment"><p>design a model</p></li><li class="fragment"><p>use if for business logic</p></li><li class="fragment"><p>and persistence</p></li><li class="fragment"><p>and API</p></li></ul></div>
 <aside class="notes"><div class="paragraph"><p>Taking a moment to design a model that is simple to understand and hard to use wrong.</p></div></aside></div></section>
 <section id="_integrations"><h2>Integrations</h2></section>
 <section id="_questons"><h2>Questons?</h2></section>

@@ -8,7 +8,7 @@
 * breaking things for money for 8 years
 * breaking things for fun for 16(?) years
 * blog at https://kubuszok.com[kubuszok.com]
-* niche https://leanpub.com/jvm-scala-book[Things you need to know about JVM (that matter in Scala)] ebook 
+* niche https://leanpub.com/jvm-scala-book[Things you need to know about JVM (that matter in Scala)] ebook
 
 
 == The plan
@@ -26,21 +26,154 @@
 
 === Warm up
 
+What we get when we do?
+
+[source, scala]
+--
+case class Value(a: Int, b: String)
+--
+
+=== !
+
+[source, scala]
+--
+class Value(a: Int, b: String)
+    extends Product with Serializable {
+  def copy(a: Int = a, b: String = b): Value = ...
+  override def equals(obj: AnyRef): Boolean = ...
+  override def hashCode(): Int = ...
+  override def toString(): String = s"Value($a, $b)"
+  // ... a lot of methods from Product
+}
+object Value extends ((Int, String) => Value) {
+  def apply(a: Int, b: String): Value = new Value(a, b)
+  def unapply(value: Value): Option[(Int, String)] = ...
+}
+--
+
+=== !
+
+[source, scala]
+--
+Value(1, "1") == new Value(1, "1") // true
+Value(1, "1") == Value(2, "2") // false
+Value(1, "1") == Value(1, "2").copy(b = "1") // true
+
+Value(1, "1") match {
+  case Value(a, b) => println(s"a: $a, b: $b")
+}
+--
+
 === When
 
-Conditions for using case class
-
-TODO
+[%step]
+* we want to represent a value/record
+* **all** properties are value types
 
 === When not
 
-Examples when case class is bad or confusing
+=== !
 
-TODO
+When there is state
+
+[.fragment]
+[source, scala]
+--
+case class NamedCounter(name: String,
+                        var counter: Int = 0) {
+  def action(): Unit = counter += 1
+}
+--
+
+[.fragment]
+[source, scala]
+--
+val counter  = NamedCounter("test")
+val counters = scala.collection.immutable.HashSet(counter)
+counters(counter) // true
+counter.action()
+counters(counter) // false
+--
+
+[.fragment]
+[source, scala]
+--
+class NamedCounter(val name: String) {
+  var counter: Int = 0
+  def action(): Unit = counter += 1
+}
+--
+
+[NOTE.speaker]
+--
+Value types shouldn't be stateful.
+--
+
+=== !
+
+When class describes behavior - especially side effects
+
+[.fragment]
+[source, scala]
+--
+case class DbConnection(user: String,
+                        pass: String,
+                        url: String) {
+  // perhaps initialize connection?
+  def runSql(query: String): Int = ...
+}
+--
+
+[.fragment]
+[source, scala]
+--
+case class DbConfig(user: String,
+                    pass: String,
+                    url: String)
+
+class DbConnection(dbCfg: DbConfig) {
+  // behavior
+}
+--
+
+[NOTE.speaker]
+--
+Value types aren't behavior. Generating apply doesn't justify using `case class`.
+--
+
+=== !
+
+When not all properties are values
+
+[.fragment]
+[source, scala]
+--
+case class KeyPair(publicKey: Array[Byte],
+                   privateKey: Array[Byte])
+--
+
+[.fragment]
+[source, scala]
+--
+case class KeyPair(publicKey: ArraySeq[Byte],
+                   privateKey: ArraySeq[Byte])
+--
+
+[NOTE.speaker]
+--
+Don't put into `case class` values which doesn't implement safe `equals` and `hashCode`. If you imagine nested `case class` es as a tree, all leafs have to have sane implementations.
+--
 
 === Cats Typeclasses
 
-TODO cats eq, hashcode, show - conditions, usage (debugging for show)
+[%step]
+* *default* `Eq` should match `.equals`
+* do not use `Show` for any business logic, only debugging (same for `.toString`)
+
+[NOTE.speaker]
+--
+These are my own recommendations.
+--
 
 
 == Flat is (often) bad
@@ -97,7 +230,7 @@ case class DataRecord(
 
 [NOTE.speaker]
 --
-Grouping these values into smaller values would help structural sharing on update, passing on only the part that is needed but more importantly 
+Grouping these values into smaller values would help structural sharing on update, passing on only the part that is needed but more importantly
 --
 
 === Nested entity
@@ -138,10 +271,12 @@ userAddress1.data.address == userAddress2.data.address
 Intent is self-evident. `===` and `Eq` can work even better.
 --
 
-=== Why people avoid nested case classes
+=== Why people avoid nesting
 
+[.fragment]
 Because `.copy`
 
+[.fragment]
 [source, scala]
 --
 userAddress.copy(
@@ -151,8 +286,10 @@ userAddress.copy(
 )
 --
 
+[.fragment]
 Unnecessarily
 
+[.fragment]
 [source, scala]
 --
 import com.softwaremill.quicklens._ // \o/ \o/ \o/
@@ -164,16 +301,102 @@ userAddress.modify(_.data.address).using(_.toUppercase)
 
 == `sealed trait` s
 
-TODO
+=== Enums
 
-=== If anything else fails - smart constructors
+[source, scala]
+--
+sealed trait Color
+object Color {
+  case object Red extends Color
+  case object Blue extends Color
+  case object Green extends Color
+}
+--
 
-TODO
+[source, scala]
+--
+(color: Color) match {
+  case Color.Red   =>
+  case Color.Blue  =>
+  case Color.Green =>
+}
+--
+
+[NOTE.speaker]
+--
+Exhaustivity check. Enums like that can be improved with Enumeratum. Avoid Enumerations!
+--
+
+=== Enumerating valid combinations
+
+[.fragment]
+[source, scala]
+--
+case class UserEmail(currentEmail: String,
+                     newEmail:     Option[String] = None,
+                     confirmed:    Boolean        = false)
+--
+
+[.fragment]
+[source, scala]
+--
+sealed trait UserEmail
+object UserEmail {
+  case class New(email: String) extends UserEmail
+  case class Confirmed(email: String) extends UserEmail
+  case class Changing(currentEmail: String,
+                      newEmail: String) extends UserEmail
+}
+--
+
+[NOTE.speaker]
+--
+Eliminate options and explosion of combinations.
+--
+
+=== !
+
+If `sealed trait` doesn't work for some reason
+
+[source, scala]
+--
+sealed abstract case class UserEmail private (
+  currentEmail: String,
+  newEmail:     Option[String],
+  confirmed:    Boolean
+)
+object UserEmail {
+  def parse(
+    currentEmail: String,
+    newEmail:     Option[String] = None,
+    confirmed:    Boolean        = false
+  ): Either[String, UserEmail] =
+    if (/* validation */) Right(new UserEmail(...) {})
+    else Left("Illegal combination of parameters")
+}
+--
+
+[NOTE.speaker]
+--
+Smart constructor.
+`abstract` prevents `.copy` and `.apply`.
+`private` prevent `new` outside of this object.
+`sealed` prevents `extends`.
+`.equals`, `.hashCode`, `.toString` and `unapply` still works.
+A lot of cases that used to be handled by smart constructor are handled by Refine Types.
+--
 
 
 == A case against uniform modelling
 
-TODO
+[.fragment]
+Uniform modelling:
+
+[%step]
+* design a model
+* use if for business logic
+* and persistence
+* and API
 
 [NOTE.speaker]
 --
