@@ -1,5 +1,6 @@
 = A few tips on modelling things in Scala
 
+Mateusz Kubuszok
 
 == About me
 
@@ -19,7 +20,6 @@
 * `sealed trait` s - not only enums
 * one size suit all - doesn't work
 * integrations and derivation
-
 
 
 == `case class` es
@@ -118,7 +118,7 @@ When class describes behavior - especially side effects
 --
 case class DbConnection(user: String,
                         pass: String,
-                        url: String) {
+                        url:  String) {
   // perhaps initialize connection?
   def runSql(query: String): Int = ...
 }
@@ -129,7 +129,7 @@ case class DbConnection(user: String,
 --
 case class DbConfig(user: String,
                     pass: String,
-                    url: String)
+                    url:  String)
 
 class DbConnection(dbCfg: DbConfig) {
   // behavior
@@ -298,6 +298,11 @@ userAddress.modify(_.data.address).setTo("Yolo")
 userAddress.modify(_.data.address).using(_.toUppercase)
 --
 
+[NOTE.speaker]
+--
+...in the domian. On the edge, where they represent DTO or API it might make sense. Lenses are not scary.
+--
+
 
 == `sealed trait` s
 
@@ -356,6 +361,23 @@ Eliminate options and explosion of combinations.
 
 === !
 
+[source, scala]
+--
+enum UserEmail {
+  case New(email: String) extends UserEmail
+  case Confirmed(email: String) extends UserEmail
+  case Changing(currentEmail: String,
+                newEmail: String) extends UserEmail
+}
+--
+
+[NOTE.speaker]
+--
+In Dotty.
+--
+
+=== !
+
 If `sealed trait` doesn't work for some reason
 
 [source, scala]
@@ -383,11 +405,13 @@ Smart constructor.
 `private` prevent `new` outside of this object.
 `sealed` prevents `extends`.
 `.equals`, `.hashCode`, `.toString` and `unapply` still works.
-A lot of cases that used to be handled by smart constructor are handled by Refine Types.
+A lot of cases that used to be handled by smart constructor are handled by Refined Types. In Dotty using opaque types.
 --
 
 
 == A case against uniform modelling
+
+=== !
 
 [.fragment]
 Uniform modelling:
@@ -400,12 +424,299 @@ Uniform modelling:
 
 [NOTE.speaker]
 --
+Typical for Rapid Applications Development. Horror for maintenance.
+--
+
+=== !
+
+[.fragment]
+Uniform modelling in practice:
+
+[%step]
+* design database tables and some objects mapping to them directly
+* bend over backwards to manually write JSON codecs for these objects
+* define domain in terms of table rows
+* alternatively, start with API
+* try to shove it to database and back
+
+[NOTE.speaker]
+--
 Taking a moment to design a model that is simple to understand and hard to use wrong.
+--
+
+=== Database Driven Design
+
+[source]
+--
+users:
++---------+------+-------+-----------+-----------------+
+| user_id | name | email | email_new | email_confirmed |
++---------+------+-------+-----------+-----------------+
+| uuid    | text | text  | text      | boolean         |
++---------+------+-------+-----------+-----------------+
+
+addresses:
++------------+---------+--------+--------+------+------+
+| address_id | user_id | line_1 | line_2 | city | zip  |
++------------+---------+--------+--------+------+------+
+| uuid       | uuid    | text   | test   | text | text |
++------------+---------+--------+--------+------+------+
+--
+
+=== !
+
+[source, scala]
+--
+case class User(id:             UUID,
+                name:           String,
+                email:          String,
+                newEmail:       Option[String],
+                emailConfirmed: Boolean)
+
+case class Address(id:       UUID,
+                   userID:   UUID,
+                   position: Int,
+                   line1:    String,
+                   line2:    Option[String],
+                   city:     String,
+                   zip:      String)
+--
+
+=== !
+
+[source, scala]
+--
+// Doobie
+
+sql"""INSERT INTO users (
+     |  id, name, email, email_new, email_confirmed
+     |)
+     |VALUE (
+     |  ${user.id}, ${user.name}, ${user.email},
+     |  ${user.newEmail}, ${user.emailConfirmed}
+     |)""".stripMargin.update
+
+sql"""SELECT id, name, email, email_new, email_confirmed
+     |FROM users
+     |WHERE id = $userID""".stripMargin.query[User]
+--
+
+[source, scala]
+--
+// Slick
+
+class Users(tag: Tag) extends TableQuery[User] {
+  // id, name, email, newEmail, emailConfirmed columns
+  def * = (id, name, email, newEmail, emailConfirmed) <> (
+    User.tupled, User.unapply
+  )
+}
+--
+
+=== !
+
+[source, json]
+--
+{
+  "user": {
+    "id": "...",
+    "name": "...",
+    "addresses": [ { "address_id": "...", ... } ]
+  }
+}
+--
+
+[source, json]
+--
+implicit val encoder: Encoder[(User, List[Address])] =
+  // manual mapping of models to JSON AST
+implicit val decoder: Decoder[(User, List[Address])] =
+  // manual mapping of JSON cursor to models
+--
+
+=== !
+
+[source, scala]
+--
+def setPrimaryAddress(user: User, address: Address) =
+  for {
+    _ <- addressBelongToUser(address, user.id)
+    addresses <- getAddressesByUser(user.id)
+    newAddresses = addresses
+      .filterNot(_.id == address.id)
+      .prepend(address)
+      .zipWithIndex
+      .map { case (a, i) => a.copy(position = i) }
+    _ <- newAddresses.traverse(persistAddress)
+  } yield newAddresses.head
+--
+
+=== Separate models
+
+=== !
+
+[source, scala]
+--
+case class User(id:   User.ID,
+                data: User.Data)
+object User {
+  case class Data(name:      User.Name,
+                  email:     User.Email,
+                  addresses: List[Address])
+  // also ID, Name, Email and whetever we need
+}
+
+case class Address(line1: Address.Line1,
+                   line2: Option[Address.Line2],
+                   city:  Address.City,
+                   zip:   Address.Zip)
+object Address { // Line1, Line2, City, Zip }
+--
+
+=== !
+
+[source, scala]
+--
+case class AddressDTO(userID: UUID,
+                      index:  Int,
+                      line1:  String,
+                      line2:  Option[String],
+                      city:   String,
+                      zip:    String) {
+  def toDomain: Address = // might be Either if we validate
+    ...
+}
+object AddressDTO {
+  def fromDomain(addrs: List[Address]): List[AddressDTO] =
+    ...
+}
+--
+
+=== !
+
+[source, scala]
+--
+case class UserDTO(id:             UUID,
+                   name:           String,
+                   email:          String,
+                   newEmail:       Option[String],
+                   emailConfirmed: Boolean) {
+  def toDomain(addressDtos: List[AddressDTO]): User = ...
+}
+object UserDTO {
+  def fromDomain(user: User): (UserDTO, List[AddressDTO]) =
+    ...
+}
+--
+
+=== !
+
+[source, scala]
+--
+val (userDTO, addressDTOs) = UserDTO.fromDomain(user)
+for {
+  _ <- sql"""INSERT INTO users ( ... )
+            |VALUE ( ${userDTO.id}, ... )
+            |ON CONFLICT (id) UPDATE ..."""
+         .stripMargin.update.run
+  addrInDB <- ... // fetch
+  (toUpsert, toDelete) = compare(addressDTOs, addrInDB)
+  _ <- sql"""INSERT INTO address ...
+            |ON CONFLICT (user_id, position) UPDATE ..."""
+         .stripMargin.update.run // using toUpsert
+  _ <- sql"""DELETE FROM addresses WHERE ..."""
+         .update.run // using toDelete
+} yield ()
+--
+
+=== !
+
+[source, scala]
+--
+for {
+  userDTO <-
+    sql"""SELECT id, name, email, email_new, email_confirmed
+         |FROM users
+         |WHERE id = $userID"""
+      .stripMargin.query[UserDTO].unique
+  addressDTOs <-
+    sql"""SELECT ... FROM addresses
+         |WHERE user_id = $userID"""
+      .stripMargin.query[AddressDTO].as[List]
+} yield userDTO.toDomain(addressDTOs)
+--
+
+=== !
+
+[source, scala]
+--
+def setPrimaryAddress(user: User, primary: Address) = {
+  val updated = user.modify(_.data.addresses).using {
+    addresses =>
+      primary :: addresses.filterNot(_ == primary)
+  }
+  for {
+    _ <- persistUser(updated)
+  } yield updated
+}
 --
 
 
 == Integrations
 
+=== Repetitive imports
+
+[source, scala]
+--
+import doobie._
+import doobie.implicits._
+import doobie.implicits.javatime._
+import doobie.postgres._
+import doobie.postgres.implicits._
+import doobie.refined.implicits._
+import CustomDoobieMeta._
+--
+
+=== !
+
+[source, scala]
+--
+object DoobieSupport
+    extends doobie.Aliases // basic functionalities
+    with doobie.hi.Modules
+    with doobie.syntax.AllSyntax
+    with ...
+    with doobie.postgres.Instances // Postgres extensions
+    with ...
+    with doobie.refined.Instances // refined types
+    with doobie.util.meta.MetaConstructors // Java Time
+    with doobie.util.meta.TimeMetaInstances {
+  // custom extensions and Meta instances
+}
+--
+
+[source, scala]
+--
+import DoobieSupport._
+--
+
+=== !
+
+[source, scala]
+--
+object TapirSupport
+    extends sttp.tapir.Tapir
+    with sttp.tapir.TapirAliases
+    with sttp.tapir.codec.refined.TapirCodecRefined
+    with sttp.tapir.json.jsoniter.TapirJsonJsoniter  {
+  // custom Tapir extensions and instances
+}
+--
+
+[source, scala]
+--
+import TapirSupport._
+--
 
 == Questons?
 
