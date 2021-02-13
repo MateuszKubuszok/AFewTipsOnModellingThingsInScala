@@ -18,7 +18,7 @@ Mateusz Kubuszok
 * `case class` es - when, when not
 * flat is (often) bad
 * `sealed trait` s - not only enums
-* one size suit all - doesn't work
+* one size suits all - doesn't work
 * integrations
 
 
