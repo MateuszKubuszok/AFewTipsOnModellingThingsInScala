@@ -155,8 +155,8 @@ link.rel = 'stylesheet';
 link.type = 'text/css';
 link.href = window.location.search.match( /print-pdf/gi ) ? "./css/print/pdf.css" : "./css/print/paper.css";
 document.getElementsByTagName( 'head' )[0].appendChild( link );</script></head><body><div class="reveal"><div class="slides"><section class="title" data-state="title"><h1>A few tips on modelling things in Scala</h1><div class="preamble"><div class="paragraph"><p>Mateusz Kubuszok</p></div></div></section>
-<section id="_about_me"><h2>About me</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>breaking things in Scala for 5+ years</p></li><li class="fragment"><p>breaking things for money for 8 years</p></li><li class="fragment"><p>breaking things for fun for 16(?) years</p></li><li class="fragment"><p>blog at <a href="https://kubuszok.com">kubuszok.com</a></p></li><li class="fragment"><p>niche <a href="https://leanpub.com/jvm-scala-book">Things you need to know about JVM (that matter in Scala)</a> ebook</p></li></ul></div></div></section>
-<section id="_the_plan"><h2>The plan</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p><code>case class</code> es - when, when not</p></li><li class="fragment"><p>flat is (often) bad</p></li><li class="fragment"><p><code>sealed trait</code> s - not only enums</p></li><li class="fragment"><p>one size suit all - doesn&#8217;t work</p></li><li class="fragment"><p>integrations and derivation</p></li></ul></div></div></section>
+<section id="_about_me"><h2>About me</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p>breaking things in Scala for 5+ years</p></li><li class="fragment"><p>breaking things for money for 8 years</p></li><li class="fragment"><p>breaking things for fun for 16(?) years</p></li><li class="fragment"><p>blog at <a href="https://kubuszok.com">Kubuszok.com</a></p></li><li class="fragment"><p>niche <a href="https://leanpub.com/jvm-scala-book">Things you need to know about JVM (that matter in Scala)</a> ebook</p></li></ul></div></div></section>
+<section id="_the_plan"><h2>The plan</h2><div class="slide-content"><div class="ulist"><ul><li class="fragment"><p><code>case class</code> es - when, when not</p></li><li class="fragment"><p>flat is (often) bad</p></li><li class="fragment"><p><code>sealed trait</code> s - not only enums</p></li><li class="fragment"><p>one size suit all - doesn&#8217;t work</p></li><li class="fragment"><p>integrations</p></li></ul></div></div></section>
 <section><section id="_case_class_es"><h2><code>case class</code> es</h2></section><section id="_warm_up"><h2>Warm up</h2><div class="slide-content"><div class="paragraph"><p>What we get when we do?</p></div>
 <div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">case class Value(a: Int, b: String)</code></pre></div></div></div></section><section><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">class Value(a: Int, b: String)
     extends Product with Serializable {
@@ -169,7 +169,8 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );</script></head><
 object Value extends ((Int, String) =&gt; Value) {
   def apply(a: Int, b: String): Value = new Value(a, b)
   def unapply(value: Value): Option[(Int, String)] = ...
-}</code></pre></div></div></div></section><section><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">Value(1, "1") == new Value(1, "1") // true
+}</code></pre></div></div>
+<aside class="notes"><div class="paragraph"><p><code>extends Function</code> is generated only if we don&#8217;t create a companion object ourselves. Which explains why sometimes we can use <code>.tupled</code> on companion, and why sometimes we have to use eta expanion.</p></div></aside></div></section><section><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">Value(1, "1") == new Value(1, "1") // true
 Value(1, "1") == Value(2, "2") // false
 Value(1, "1") == Value(1, "2").copy(b = "1") // true
 
@@ -371,7 +372,7 @@ class Users(tag: Tag) extends TableQuery[User] {
     "addresses": [ { "address_id": "...", ... } ]
   }
 }</code></pre></div></div>
-<div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="json" class="language-json hljs" data-noescape="true">implicit val encoder: Encoder[(User, List[Address])] =
+<div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">implicit val encoder: Encoder[(User, List[Address])] =
   // manual mapping of models to JSON AST
 implicit val decoder: Decoder[(User, List[Address])] =
   // manual mapping of JSON cursor to models</code></pre></div></div></div></section><section><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">def setPrimaryAddress(user: User, address: Address) =
@@ -450,7 +451,13 @@ for {
   for {
     _ &lt;- persistUser(updated)
   } yield updated
-}</code></pre></div></div></div></section></section>
+}</code></pre></div></div>
+<div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">def setAddressEndpoint(userID:     User.ID,
+                       addressAPI: AddressAPI) = for {
+  user &lt;- getUser(userID)
+  address = addressAPI.toDomain
+  updated &lt;- setPrimaryAddress(user, address)
+} yield UserAPI.fromDomain(updated)</code></pre></div></div></div></section></section>
 <section><section id="_integrations"><h2>Integrations</h2></section><section id="_repetitive_imports"><h2>Repetitive imports</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">import doobie._
 import doobie.implicits._
 import doobie.implicits.javatime._
@@ -476,7 +483,11 @@ import CustomDoobieMeta._</code></pre></div></div></div></section><section><div 
     with sttp.tapir.json.jsoniter.TapirJsonJsoniter  {
   // custom Tapir extensions and instances
 }</code></pre></div></div>
-<div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">import TapirSupport._</code></pre></div></div></div></section></section>
+<div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">import TapirSupport._</code></pre></div></div></div></section><section id="_import_by_default"><h2>Import by default</h2><div class="slide-content"><div class="listingblock"><div class="content"><pre class="highlightjs highlight"><code data-lang="scala" class="language-scala hljs" data-noescape="true">// default: import java.lang._, scala._, scala.Predef._
+
+// since 2.13
+scalacOptions +=
+  "-Yimports:java.lang,scala,scala.Predef,cats.syntax.all"</code></pre></div></div></div></section></section>
 <section id="_questons"><h2>Questons?</h2></section>
 <section id="_thank_you"><h2>Thank you!</h2></section></div></div><script src="./js/reveal.js"></script><script>Array.prototype.slice.call(document.querySelectorAll('.slides section')).forEach(function(slide) {
   if (slide.getAttribute('data-background-color')) return;

@@ -8,7 +8,7 @@ Mateusz Kubuszok
 * breaking things in Scala for 5+ years
 * breaking things for money for 8 years
 * breaking things for fun for 16(?) years
-* blog at https://kubuszok.com[kubuszok.com]
+* blog at https://kubuszok.com[Kubuszok.com]
 * niche https://leanpub.com/jvm-scala-book[Things you need to know about JVM (that matter in Scala)] ebook
 
 
@@ -19,7 +19,7 @@ Mateusz Kubuszok
 * flat is (often) bad
 * `sealed trait` s - not only enums
 * one size suit all - doesn't work
-* integrations and derivation
+* integrations
 
 
 == `case class` es
@@ -49,6 +49,11 @@ object Value extends ((Int, String) => Value) {
   def apply(a: Int, b: String): Value = new Value(a, b)
   def unapply(value: Value): Option[(Int, String)] = ...
 }
+--
+
+[NOTE.speaker]
+--
+`extends Function` is generated only if we don't create a companion object ourselves. Which explains why sometimes we can use `.tupled` on companion, and why sometimes we have to use eta expanion.
 --
 
 === !
@@ -526,7 +531,7 @@ class Users(tag: Tag) extends TableQuery[User] {
 }
 --
 
-[source, json]
+[source, scala]
 --
 implicit val encoder: Encoder[(User, List[Address])] =
   // manual mapping of models to JSON AST
@@ -661,6 +666,16 @@ def setPrimaryAddress(user: User, primary: Address) = {
 }
 --
 
+[source, scala]
+--
+def setAddressEndpoint(userID:     User.ID,
+                       addressAPI: AddressAPI) = for {
+  user <- getUser(userID)
+  address = addressAPI.toDomain
+  updated <- setPrimaryAddress(user, address)
+} yield UserAPI.fromDomain(updated)
+--
+
 
 == Integrations
 
@@ -716,6 +731,17 @@ object TapirSupport
 [source, scala]
 --
 import TapirSupport._
+--
+
+=== Import by default
+
+[source, scala]
+--
+// default: import java.lang._, scala._, scala.Predef._
+
+// since 2.13
+scalacOptions +=
+  "-Yimports:java.lang,scala,scala.Predef,cats.syntax.all"
 --
 
 == Questons?
